@@ -1,96 +1,19 @@
-# Manual PIA VPN Connections
+#  PIA Port forwaded VPN Connections on Synology
 
-This repository contains documentation on how to create native WireGuard and OpenVPN connections to our __NextGen network__, and also on how to enable Port Forwarding in case you require this feature. You will find a lot of information below. However if you prefer quick test, here is the __TL/DR__:
+This repository is a fork of https://github.com/pia-foss/manual-connections but with the scripts edited to allow port forwarding on a Synology NAS that uses the OpenVPN config in the DiskStation GUI.
 
-```
-git clone https://github.com/pia-foss/manual-connections.git
-cd manual-connections
-./run_setup.sh
-```
+I run these on "route-up" of the OpenVPN connection to have the connection do this automatically for you, you will need to ssh into your NAS and add a line to call the caller_script.sh. You want to keep this short because the VPN will wait while this script runs.
 
-The scripts were written so that they are easy to read and to modify. We hope you will enjoy forking the repo and customizing the scripts for your setup!
+the call on line 5 of running_script.sh calls the modified PIA scripts and sets up the port forward and continues to run so that the port will be continually bound too. When being called by the system (rather than being run by you in a terminal) its best if it is run in the background, I also like to pipe the output to a text file to check on the connection
 
-### Dependencies
+### Lets get started
 
-In order for the scripts to work (probably even if you do a manual setup), you will need the following packages:
- * `curl`
- * `jq`
- * (only for WireGuard) `wg-quick` and `wireguard` kernel module
- * (only for OpenVPN) `openvpn`
-
-### Confirmed systems and distributions
-
-The functionality of the scripts within this repository has been tested and confirmed on the following operating systems and GNU/Linux distributions:
- * Arch
- * Artix
- * Fedora 32, 33
- * FreeBSD 12.1 (tweaks are required)
- * Manjaro
- * PureOS amber
- * Raspberry Pi OS 2020-08-20
- * Ubuntu 18.04, 20.04
-
-### Disclaimers
-
- * Port Forwarding is disabled on server-side in the United States.
- * These scripts do not enforce IPv6 or DNS settings, so that you have the freedom to configure your setup the way you desire it to work. This means you should have good understanding of VPN and cybersecurity in order to properly configure your setup.
- * For battle-tested security, please use the official PIA App, as it was designed to protect you in all scenarios.
- * This repo is really fresh at this moment, so please take into consideration the fact that you will probably be one of the first users that use the scripts.
-
-## PIA Port Forwarding
-
-The PIA Port Forwarding service (a.k.a. PF) allows you run services on your own devices, and expose them to the internet by using the PIA VPN Network. The easiest way to set this up is by using a native PIA aplication. In case you require port forwarding on native clients, please follow this documentation in order to enable port forwarding for your VPN connection.
-
-This service can be used only AFTER establishing a VPN connection.
-
-## Automated setup of VPN and/or PF
-
-In order to help you use VPN services and PF on any device, we have prepared a few bash scripts that should help you through the process of setting everything up. The scripts also contain a lot of comments, just in case you require detailed information regarding how the technology works. The functionality is controlled via environment variables, so that you have an easy time automating your setup.
-
-Here is a list of scripts you could find useful:
- * [Get the best region and a token](get_region_and_token.sh): This script helps you to get the best region and also to get a token for VPN authentication. Adding your PIA credentials to env vars `PIA_USER` and `PIA_PASS` will allow the script to also get a VPN token. The script can also trigger the WireGuard script to create a connection, if you specify `PIA_AUTOCONNECT=wireguard` or `PIA_AUTOCONNECT=openvpn_udp_standard`
- * [Connect to WireGuard](connect_to_wireguard_with_token.sh): This script allows you to connect to the VPN server via WireGuard.
- * [Connect to OpenVPN](connect_to_openvpn_with_token.sh): This script allows you to connect to the VPN server via OpenVPN.
- * [Enable Port Forwarding](port_forwarding.sh): Enables you to add Port Forwarding to an existing VPN connection. Adding the environment variable `PIA_PF=true` to any of the previous scripts will also trigger this script.
-
-## Manual setup of PF
-
-To use port forwarding on the NextGen network, first of all establish a connection with your favorite protocol. After this, you will need to find the private IP of the gateway you are connected to. In case you are WireGuard, the gateway will be part of the JSON response you get from the server, as you can see in the [bash script](https://github.com/pia-foss/manual-connections/blob/master/wireguard_and_pf.sh#L119). In case you are using OpenVPN, you can find the gateway by checking the routing table with `ip route s t all`.
-
-After connecting and finding out what the gateway is, get your payload and your signature by calling `getSignature` via HTTPS on port 19999. You will have to add your token as a GET var to prove you actually have an active account.
-
-Example:
-```bash
-bash-5.0# curl -k "https://10.4.128.1:19999/getSignature?token=$TOKEN"
-{
-    "status": "OK",
-    "payload": "eyJ0b2tlbiI6Inh4eHh4eHh4eCIsInBvcnQiOjQ3MDQ3LCJjcmVhdGVkX2F0IjoiMjAyMC0wNC0zMFQyMjozMzo0NC4xMTQzNjk5MDZaIn0=",
-    "signature": "a40Tf4OrVECzEpi5kkr1x5vR0DEimjCYJU9QwREDpLM+cdaJMBUcwFoemSuJlxjksncsrvIgRdZc0te4BUL6BA=="
-}
-```
-
-The payload can be decoded with base64 to see your information:
-```bash
-$ echo eyJ0b2tlbiI6Inh4eHh4eHh4eCIsInBvcnQiOjQ3MDQ3LCJjcmVhdGVkX2F0IjoiMjAyMC0wNC0zMFQyMjozMzo0NC4xMTQzNjk5MDZaIn0= | base64 -d | jq 
-{
-  "token": "xxxxxxxxx",
-  "port": 47047,
-  "expires_at": "2020-06-30T22:33:44.114369906Z"
-}
-```
-This is where you can also see the port you received. Please consider `expires_at` as your request will fail if the token is too old. All ports currently expire after 2 months.
-
-Use the payload and the signature to bind the port on any server you desire. This is also done by curling the gateway of the VPN server you are connected to.
-```bash
-bash-5.0# curl -sGk --data-urlencode "payload=${payload}" --data-urlencode "signature=${signature}" https://10.4.128.1:19999/bindPort
-{
-    "status": "OK",
-    "message": "port scheduled for add"
-}
-bash-5.0# 
-```
-
-Call __/bindPort__ every 15 minutes, or the port will be deleted!
+1. ssh into your NAS
+2. gain root access by 'sudo su -' and entering your password
+3. copy your route up script to one of your volumes mine was located here /usr/syno/etc.defaults/synovpnclient/scripts/route-up
+4. open the route-up script in a text editor and add absolute directions to your caller_script.sh. I added it in the middle. The absolute path will be something like /volume1/{volume name}/caller_script.sh
+5. save the file and using the terminal copy it back to its orginal directory e.g. /usr/syno/etc.defaults/synovpnclient/scripts/route-up
+6. next time the connection is created the script will be called. It looks like Synology has only one script for route-up if you only want to run these scripts for PIA VPN connections you will have to do some modifications
 
 ### Testing your new PF
 
