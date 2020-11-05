@@ -103,20 +103,40 @@ Trying to bind the port..."
 # alive. The servers have no mechanism to track your activity, so they
 # will just delete the port forwarding if you don't send keepalives.
 while true; do
-  bind_port_response="$(curl -Gs -m 5 \
-    --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
-    --cacert "ca.rsa.4096.crt" \
+  bind_port_response="$(curl -ks -v -G --max-time 10 \
     --data-urlencode "payload=${payload}" \
     --data-urlencode "signature=${signature}" \
-    "https://${PF_HOSTNAME}:19999/bindPort")"
+    "https://${PF_GATEWAY}:19999/bindPort")"
     echo "$bind_port_response"
 
     # If port did not bind, just exit the script.
     # This script will exit in 2 months, since the port will expire.
     export bind_port_response
     if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
-      echo "The API did not return OK when trying to bind port. Exiting."
-      exit 1
+      bind_port_response="$(curl -ks -v -G --max-time 10 \
+        --data-urlencode "payload=${payload}" \
+        --data-urlencode "signature=${signature}" \
+        "https://${PF_GATEWAY}:19999/bindPort")"
+      echo "$bind_port_response"
+
+      # If port did not bind, just exit the script.
+      # This script will exit in 2 months, since the port will expire.
+      export bind_port_response
+      if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
+        bind_port_response="$(curl -ks -v -G --max-time 10 \
+          --data-urlencode "payload=${payload}" \
+          --data-urlencode "signature=${signature}" \
+          "https://${PF_GATEWAY}:19999/bindPort")"
+        echo "$bind_port_response"
+
+        # If port did not bind, just exit the script.
+        # This script will exit in 2 months, since the port will expire.
+        export bind_port_response
+        if [ "$(echo "$bind_port_response" | jq -r '.status')" != "OK" ]; then
+          echo "The API did not return OK after three attempts when trying to bind port. Exiting."
+          exit 1
+        fi
+      fi
     fi
     echo Port $port refreshed on $(date). \
       This port will expire on $(date --date="$expires_at")
