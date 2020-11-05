@@ -120,6 +120,7 @@ while true; do
     fi
     echo Port $port refreshed on $(date). \
       This port will expire on $(date --date="$expires_at")
+    echo "$port" >| ./port.txt
 
     # sleep 15 minutes
     sleep 900
