@@ -19,6 +19,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+echo PF_GATEWAY = $PF_GATEWAY
+echo PF_HOSTNAME = $PF_HOSTNAME
+echo PIA_TOKEN = $PIA_TOKEN
 
 # Check if the mandatory environment variables are set.
 if [[ ! $PF_GATEWAY || ! $PIA_TOKEN || ! $PF_HOSTNAME ]]; then
@@ -56,11 +59,9 @@ fi
 # in the env var PAYLOAD_AND_SIGNATURE, and that will be used instead.
 if [[ ! $PAYLOAD_AND_SIGNATURE ]]; then
   echo "Getting new signature..."
-  payload_and_signature="$(curl -s -m 5 \
-    --connect-to "$PF_HOSTNAME::$PF_GATEWAY:" \
-    --cacert "ca.rsa.4096.crt" \
-    -G --data-urlencode "token=${PIA_TOKEN}" \
-    "https://${PF_HOSTNAME}:19999/getSignature")"
+  payload_and_signature="$(curl -ks -v -G --max-time 10 \
+    --data-urlencode "token=${PIA_TOKEN}" \
+    "https://${PF_GATEWAY}:19999/getSignature")"
 else
   payload_and_signature="$PAYLOAD_AND_SIGNATURE"
   echo "Using the following payload_and_signature from the env var:"
